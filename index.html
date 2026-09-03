@@ -12,7 +12,7 @@
 <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore-compat.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/nepali-date-converter/dist/nepali-date-converter.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@remotemerge/nepali-date-converter@1/dist/ndc-browser.js"></script>
 <script>
 /* SheetJS xlsx v0.18.5 — bundled inline for offline Excel export */
 /*! xlsx.js (C) 2013-present SheetJS -- http://sheetjs.com */
@@ -969,19 +969,21 @@ function save(){
 function uid(prefix){ return prefix+"-"+Date.now().toString(36).toUpperCase().slice(-5)+Math.floor(Math.random()*90+10); }
 function fmtMoney(n){ n = Number(n)||0; return "Rs. "+n.toLocaleString('en-IN',{maximumFractionDigits:0}); }
 let dateFormatPref = localStorage.getItem('dinita_date_format') || 'AD'; /* 'AD' or 'BS' — applies to orders/dashboard/etc; Expenses always show BS regardless */
-function bsFormat(iso, fmt){
+const NEPALI_MONTHS=['बैशाख','जेठ','असार','साउन','भदौ','असोज','कार्तिक','मंसिर','पुष','माघ','फागुन','चैत'];
+const NEPALI_DIGITS=['०','१','२','३','४','५','६','७','८','९'];
+function toNepaliDigits(n){ return String(n).replace(/[0-9]/g, d=>NEPALI_DIGITS[d]); }
+function bsFormat(iso){
   try{
-    const [y,m,d]=iso.split('-').map(Number);
-    const jsDate=new Date(y, m-1, d);
-    const nd=new NepaliDate(jsDate);
-    return nd.format(fmt||'DD MMM YYYY');
+    const bs=new DateConverter(iso).toBs();
+    if(!bs || !bs.year) return null;
+    return toNepaliDigits(bs.date)+' '+NEPALI_MONTHS[bs.month-1]+' '+toNepaliDigits(bs.year);
   }catch(err){ return null; }
 }
 function fmtDate(iso, forceBS){
   if(!iso) return "—";
-  if((forceBS || dateFormatPref==='BS') && typeof NepaliDate!=='undefined'){
+  if((forceBS || dateFormatPref==='BS') && typeof DateConverter!=='undefined'){
     const bs=bsFormat(iso);
-    if(bs) return bs+' BS';
+    if(bs) return bs;
   }
   const d=new Date(iso+"T00:00:00");
   if(isNaN(d)) return iso;
