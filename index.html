@@ -747,7 +747,7 @@ tbody tr:hover{background:var(--border-soft);cursor:pointer;}
         <div class="card">
           <div class="card-title" style="margin-bottom:16px;">Date Format</div>
           <div class="small-note" style="line-height:1.6;margin-bottom:14px;">
-            Choose how dates display across Orders, Dashboard, and Reports. <b style="color:var(--gold);">Expenses always show in B.S.</b> regardless of this setting. Date pickers (when adding a record) always use the A.D. calendar — this only changes how dates are shown afterward.
+            Choose how dates display across Orders, Dashboard, and Reports. <b style="color:var(--gold);">B.S. is the default</b> everywhere, and Expenses always show in B.S. regardless of this setting. Switch to A.D. anytime if you prefer. Date pickers (when adding a record) always use the A.D. calendar — this only changes how dates are shown afterward.
           </div>
           <div style="display:flex;gap:10px;">
             <button type="button" class="btn btn-ghost btn-sm" id="dateFmtADBtn">A.D.</button>
@@ -968,7 +968,7 @@ function save(){
 /* ============ HELPERS ============ */
 function uid(prefix){ return prefix+"-"+Date.now().toString(36).toUpperCase().slice(-5)+Math.floor(Math.random()*90+10); }
 function fmtMoney(n){ n = Number(n)||0; return "Rs. "+n.toLocaleString('en-IN',{maximumFractionDigits:0}); }
-let dateFormatPref = localStorage.getItem('dinita_date_format') || 'AD'; /* 'AD' or 'BS' — applies to orders/dashboard/etc; Expenses always show BS regardless */
+let dateFormatPref = localStorage.getItem('dinita_date_format') || 'BS'; /* B.S. is the default; 'AD' stays available as a toggle everywhere */
 const NEPALI_MONTHS=['बैशाख','जेठ','असार','साउन','भदौ','असोज','कार्तिक','मंसिर','पुष','माघ','फागुन','चैत'];
 const NEPALI_DIGITS=['०','१','२','३','४','५','६','७','८','९'];
 function toNepaliDigits(n){ return String(n).replace(/[0-9]/g, d=>NEPALI_DIGITS[d]); }
@@ -1439,7 +1439,12 @@ function renderDashboard(){
   const days=[]; for(let i=13;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days.push(localDateStr(d)); }
   const revByDay = days.map(d=> DB.orders.filter(o=>o.date===d && o.status!=='Cancelled').reduce((s,o)=>s+orderTotal(o),0));
   const expByDay = days.map(d=> DB.expenses.filter(e=>e.date===d).reduce((s,e)=>s+Number(e.amount||0),0));
-  const labels = days.map(d=>d.slice(5));
+  const labels = days.map(d=>{
+    if(dateFormatPref==='BS' && typeof DateConverter!=='undefined'){
+      try{ const bs=new DateConverter(d).toBs(); return toNepaliDigits(bs.date)+' '+NEPALI_MONTHS[bs.month-1].slice(0,3); }catch(e){}
+    }
+    return d.slice(5);
+  });
   const ctx1=document.getElementById('chartDashTrend').getContext('2d');
   if(chartDashTrend) chartDashTrend.destroy();
   chartDashTrend = new Chart(ctx1, chartLineConfig(labels, [
@@ -1786,10 +1791,21 @@ document.querySelectorAll('#periodTabs .chip-tab').forEach(tab=>{
 
 function periodBuckets(period){
   const buckets=[];
+  const useBS=(dateFormatPref==='BS' && typeof DateConverter!=='undefined');
   if(period==='daily'){
-    for(let i=29;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); const key=localDateStr(d); buckets.push({key, label:key.slice(5)}); }
+    for(let i=29;i>=0;i--){
+      const d=new Date(); d.setDate(d.getDate()-i); const key=localDateStr(d);
+      let label=key.slice(5);
+      if(useBS){ try{ const bs=new DateConverter(key).toBs(); label=toNepaliDigits(bs.date)+' '+NEPALI_MONTHS[bs.month-1].slice(0,3); }catch(e){} }
+      buckets.push({key, label});
+    }
   }else if(period==='monthly'){
-    for(let i=11;i>=0;i--){ const d=new Date(); d.setMonth(d.getMonth()-i); const key=localDateStr(d).slice(0,7); buckets.push({key, label:d.toLocaleDateString('en-GB',{month:'short',year:'2-digit'})}); }
+    for(let i=11;i>=0;i--){
+      const d=new Date(); d.setMonth(d.getMonth()-i); const key=localDateStr(d).slice(0,7);
+      let label=d.toLocaleDateString('en-GB',{month:'short',year:'2-digit'});
+      if(useBS){ try{ const bs=new DateConverter(localDateStr(d)).toBs(); label=NEPALI_MONTHS[bs.month-1]+' '+toNepaliDigits(String(bs.year).slice(-2)); }catch(e){} }
+      buckets.push({key, label});
+    }
   }else{
     const years=new Set(); DB.orders.forEach(o=>o.date&&years.add(o.date.slice(0,4))); DB.expenses.forEach(e=>e.date&&years.add(e.date.slice(0,4)));
     years.add(String(new Date().getFullYear()));
